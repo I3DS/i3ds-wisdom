@@ -20,10 +20,10 @@ class Wisdom : public i3ds::Sensor
     public:
 
         // Constructor
-        Wisdom(i3ds_asn1::NodeID node, unsigned int dummy_delay = 0);
+        Wisdom(i3ds_asn1::NodeID node, unsigned int dummy_delay = 0, std::string port = "");
 
         // Destructor
-        virtual ~Wisdom() = default;
+        virtual ~Wisdom();
 
         // Returns true if sample configuration is supported.
         virtual bool is_sampling_supported(i3ds_asn1::SampleCommand sample);
@@ -46,15 +46,29 @@ class Wisdom : public i3ds::Sensor
 
     private:
 
+        // UDP communication functions
+        void send_udp_command(const char* command);
+        void wait_for_ack();
+
         void dummy_wait_for_measurement_to_finish();
         void wait_for_measurement_to_finish();
-        bool measurement_finished();
 
         const unsigned int dummy_delay_;
 
         // Worker thread.
         std::thread worker_;
 
+        // Networking structs
+        int udp_socket;
+        struct addrinfo *wisdom_addr;
+
+        // UDP message commands
+        static const unsigned int CMD_LEN = 4;
+        const char SCI_CONFIG[CMD_LEN] = {1, 0, 0, 0};
+        const char HK_REQUEST[CMD_LEN] = {2, 0, 0, 0};
+        const char SCI_START[CMD_LEN] = {3, 0, 0, 3};
+        const char SCI_REQUEST[CMD_LEN] = {4, 0, 0, 0};
+        const char SET_TIME[CMD_LEN] = {7, 0, 0, 0};
 };
 
 
