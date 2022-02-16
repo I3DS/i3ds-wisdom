@@ -30,6 +30,9 @@ class Wisdom : public i3ds::Sensor
 
         virtual void Attach(i3ds::Server& server);
 
+        // Stop listening for ACK. Call this before stopping the attached server.
+        void Stop();
+
     protected:
 
         // Action when activated.
@@ -69,6 +72,8 @@ class Wisdom : public i3ds::Sensor
         const char SCI_START[CMD_LEN] = {3, 0, 0, 3};
         const char SCI_REQUEST[CMD_LEN] = {4, 0, 0, 0};
         const char SET_TIME[CMD_LEN] = {7, 0, 0, 0};
+
+        std::atomic<bool> running_;
 };
 
 

@@ -14,11 +14,13 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <poll.h>
 #include <errno.h>
 
 Wisdom::Wisdom(i3ds_asn1::NodeID node, unsigned int dummy_delay, std::string port) :
     Sensor(node),
-    dummy_delay_(dummy_delay)
+    dummy_delay_(dummy_delay),
+    running_(true)
 {
     set_device_name("WISDOM GPR");
 
@@ -113,11 +115,21 @@ void Wisdom::wait_for_ack()
     BOOST_LOG_TRIVIAL(info) << "Waiting for ACK";
     struct sockaddr_storage tmp_addr;
     socklen_t tmp_addr_len = sizeof(tmp_addr);
+    struct pollfd pfds[1];
+    pfds[0].fd = udp_socket;
+    pfds[0].events = POLLIN;
     char ack_buf[4];
-    if ((recvfrom(udp_socket, ack_buf, 4 , 0, (struct sockaddr *)&tmp_addr, &tmp_addr_len)) == -1) {
-        throw std::runtime_error("recvfrom failed with errno: " + errno);
+    int n_events = 0;
+    while (n_events == 0 && running_) {
+        n_events = poll(pfds, 1, 1000);
     }
-    BOOST_LOG_TRIVIAL(info) << "ACK received";
+    if (pfds[0].revents & POLLIN) {
+        // We have a message to receive
+        if ((recvfrom(udp_socket, ack_buf, 4 , 0, (struct sockaddr *)&tmp_addr, &tmp_addr_len)) == -1) {
+            throw std::runtime_error("recvfrom failed with errno: " + errno);
+        }
+        BOOST_LOG_TRIVIAL(info) << "ACK received";
+    }
 }
 
 void Wisdom::dummy_wait_for_measurement_to_finish()
@@ -133,4 +145,9 @@ void Wisdom::wait_for_measurement_to_finish()
     wait_for_ack();
     BOOST_LOG_TRIVIAL(info) << "Measurement done";
     set_state(i3ds_asn1::SensorState_standby);
+}
+
+void Wisdom::Stop()
+{
+    running_ = false;
 }

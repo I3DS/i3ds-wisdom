@@ -68,6 +68,7 @@ int main(int argc, char *argv[])
         sleep(1);
     }
 
+    wisdom.Stop();
     server.Stop();
     return 0;
 }
