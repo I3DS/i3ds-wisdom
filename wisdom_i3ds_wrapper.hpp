@@ -20,7 +20,8 @@ class Wisdom : public i3ds::Sensor
     public:
 
         // Constructor
-        Wisdom(i3ds_asn1::NodeID node, unsigned int dummy_delay = 0, std::string port = "");
+        Wisdom(i3ds_asn1::NodeID node, unsigned int dummy_delay = 0, 
+               std::string port = "", std::string ip = "127.0.0.1");
 
         // Destructor
         virtual ~Wisdom();

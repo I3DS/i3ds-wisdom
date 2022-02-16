@@ -41,6 +41,7 @@ int main(int argc, char *argv[])
     unsigned int node_id;
     unsigned int dummy_delay;
     std::string port;
+    std::string ip;
     i3ds::Configurator configurator;
 
     po::options_description desc("Allowed WISDOM options");
@@ -49,7 +50,8 @@ int main(int argc, char *argv[])
     desc.add_options()
     ("node,n", po::value<unsigned int>(&node_id)->default_value(10), "Node ID of sensor")
     ("dummy-delay,d", po::value<unsigned int>(&dummy_delay)->default_value(0), "Set to a value > 0 to run in dummy mode.")
-    ("port,p", po::value<std::string>(&port)->default_value(""), "Port number of Wisdom server. Ignored if run in dummy mode");
+    ("port,p", po::value<std::string>(&port)->default_value(""), "Port number of Wisdom server. Ignored if run in dummy mode")
+    ("ip,i", po::value<std::string>(&ip)->default_value("127.0.0.1"), "IP address of WISDOM server");
     po::variables_map vm = configurator.parse_common_options(desc, argc, argv);
 
     if (dummy_delay == 0) {

@@ -17,7 +17,7 @@
 #include <poll.h>
 #include <errno.h>
 
-Wisdom::Wisdom(i3ds_asn1::NodeID node, unsigned int dummy_delay, std::string port) :
+Wisdom::Wisdom(i3ds_asn1::NodeID node, unsigned int dummy_delay, std::string port, std::string ip) :
     Sensor(node),
     dummy_delay_(dummy_delay),
     running_(true)
@@ -31,7 +31,7 @@ Wisdom::Wisdom(i3ds_asn1::NodeID node, unsigned int dummy_delay, std::string por
         hints.ai_family = AF_INET;
         hints.ai_socktype = SOCK_DGRAM;
 
-        if ((rv = getaddrinfo("127.0.0.1", port.c_str(), &hints, &wisdom_addr)) != 0) {
+        if ((rv = getaddrinfo(ip.c_str(), port.c_str(), &hints, &wisdom_addr)) != 0) {
             throw std::runtime_error("addrinfo failed with errno: " + errno);
         }
 
