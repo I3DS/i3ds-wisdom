@@ -27,3 +27,5 @@ target_link_libraries(i3ds_wisdom ${LIBS})
 
 add_executable(wisdom_ack_service wisdom_ack_service.cpp)
 target_link_libraries(wisdom_ack_service ${LIBS})
+
+install(TARGETS i3ds_wisdom wisdom_ack_service DESTINATION bin)
