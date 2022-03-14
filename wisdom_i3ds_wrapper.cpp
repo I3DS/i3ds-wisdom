@@ -65,8 +65,6 @@ void Wisdom::do_activate()
 {
     BOOST_LOG_TRIVIAL(info) << "Activating WISDOM";
     if (dummy_delay_ == 0) {
-        //BOOST_LOG_TRIVIAL(info) << "Powering on WISDOM";
-        // TODO: Send POWER_ON command
         BOOST_LOG_TRIVIAL(info) << "Sending SET_TIME command";
         send_udp_command(SET_TIME);
         wait_for_ack(SET_TIME[0]);
@@ -99,8 +97,7 @@ void Wisdom::do_stop()
 
 void Wisdom::do_deactivate()
 {
-    BOOST_LOG_TRIVIAL(info) << "Powering off WISDOM";
-    // TODO: Send POWER_OFF command
+    BOOST_LOG_TRIVIAL(info) << "Deactivating WISDOM";
 }
 
 void Wisdom::send_udp_command(const char* command)
