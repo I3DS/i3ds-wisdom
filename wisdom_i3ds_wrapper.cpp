@@ -69,10 +69,10 @@ void Wisdom::do_activate()
         // TODO: Send POWER_ON command
         BOOST_LOG_TRIVIAL(info) << "Sending SET_TIME command";
         send_udp_command(SET_TIME);
-        wait_for_ack();
+        wait_for_ack(SET_TIME[0]);
         BOOST_LOG_TRIVIAL(info) << "Sending SCI_CONFIG command";
         send_udp_command(SCI_CONFIG);
-        wait_for_ack();
+        wait_for_ack(SCI_CONFIG[0]);
     }
 }
 
@@ -110,7 +110,7 @@ void Wisdom::send_udp_command(const char* command)
     }
 }
 
-void Wisdom::wait_for_ack()
+void Wisdom::wait_for_ack(const char expected_byte)
 {
     BOOST_LOG_TRIVIAL(info) << "Waiting for ACK";
     struct sockaddr_storage tmp_addr;
@@ -118,17 +118,21 @@ void Wisdom::wait_for_ack()
     struct pollfd pfds[1];
     pfds[0].fd = udp_socket;
     pfds[0].events = POLLIN;
-    char ack_buf[4];
+    char ack_buf;
     int n_events = 0;
     while (n_events == 0 && running_) {
         n_events = poll(pfds, 1, 1000);
     }
     if (pfds[0].revents & POLLIN) {
         // We have a message to receive
-        if ((recvfrom(udp_socket, ack_buf, 4 , 0, (struct sockaddr *)&tmp_addr, &tmp_addr_len)) == -1) {
+        if ((recvfrom(udp_socket, &ack_buf, 1 , 0, (struct sockaddr *)&tmp_addr, &tmp_addr_len)) == -1) {
             throw std::runtime_error("recvfrom failed with errno: " + errno);
         }
-        BOOST_LOG_TRIVIAL(info) << "ACK received";
+        BOOST_LOG_TRIVIAL(info) << "ACK received: " << (int)ack_buf;
+        if (ack_buf != expected_byte) {
+            BOOST_LOG_TRIVIAL(warning) << "WARNING: incorrect ack byte received, expected " 
+                                       << (int)expected_byte;
+        }
     }
 }
 
@@ -142,7 +146,7 @@ void Wisdom::dummy_wait_for_measurement_to_finish()
 
 void Wisdom::wait_for_measurement_to_finish()
 {
-    wait_for_ack();
+    wait_for_ack(SCI_START[0]);
     BOOST_LOG_TRIVIAL(info) << "Measurement done";
     set_state(i3ds_asn1::SensorState_standby);
 }

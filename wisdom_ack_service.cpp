@@ -60,7 +60,6 @@ int main(int argc, char **argv)
 
     BOOST_LOG_TRIVIAL(info) << "WISDOM ACK service ready";
     int n_bytes;
-    char ACK[4] = "ACK";
     socklen_t addr_len = sizeof(remote_addr);
     while (strcmp(buf, "end")) {
         if ((n_bytes = recvfrom(sockfd, buf, CMD_LEN , 0,
@@ -75,8 +74,8 @@ int main(int argc, char **argv)
         }
         BOOST_LOG_TRIVIAL(info) << ss.str();
         sleep(delay);
-        BOOST_LOG_TRIVIAL(info) << "Sending ACK";
-        if ((sendto(sockfd, ACK, 4, 0, (struct sockaddr *)&remote_addr, addr_len)) == -1) {
+        BOOST_LOG_TRIVIAL(info) << "Sending ACK: " << (int)buf[0];
+        if ((sendto(sockfd, buf, 1, 0, (struct sockaddr *)&remote_addr, addr_len)) == -1) {
             BOOST_LOG_TRIVIAL(error) << "sendto failed with errno: " << errno;
             exit(1);
         }

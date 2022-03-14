@@ -52,7 +52,7 @@ class Wisdom : public i3ds::Sensor
 
         // UDP communication functions
         void send_udp_command(const char* command);
-        void wait_for_ack();
+        void wait_for_ack(const char expected_byte);
 
         void dummy_wait_for_measurement_to_finish();
         void wait_for_measurement_to_finish();
