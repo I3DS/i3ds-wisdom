@@ -145,6 +145,10 @@ void Wisdom::wait_for_measurement_to_finish()
 {
     wait_for_ack(SCI_START[0]);
     BOOST_LOG_TRIVIAL(info) << "Measurement done";
+    BOOST_LOG_TRIVIAL(info) << "Retrieving data";
+    send_udp_command(SCI_REQUEST);
+    wait_for_ack(SCI_REQUEST[0]);
+    BOOST_LOG_TRIVIAL(info) << "Data retrieval done";
     set_state(i3ds_asn1::SensorState_standby);
 }
 
