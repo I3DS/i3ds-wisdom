@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
     ("ip,i", po::value<std::string>(&ip)->default_value("127.0.0.1"), "IP address of WISDOM server");
     po::variables_map vm = configurator.parse_common_options(desc, argc, argv);
 
-    if (dummy_delay == 0) {
+    if (dummy_delay != 0) {
         BOOST_LOG_TRIVIAL(info) << "Running in dummy mode";
     }
     BOOST_LOG_TRIVIAL(info) << "Node ID: " << node_id;
