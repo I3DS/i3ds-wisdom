@@ -32,12 +32,12 @@ Wisdom::Wisdom(i3ds_asn1::NodeID node, unsigned int dummy_delay, std::string por
         hints.ai_socktype = SOCK_DGRAM;
 
         if ((rv = getaddrinfo(ip.c_str(), port.c_str(), &hints, &wisdom_addr)) != 0) {
-            throw std::runtime_error("addrinfo failed with errno: " + errno);
+            throw std::runtime_error("addrinfo failed with errno: " + std::to_string(errno));
         }
 
         if ((udp_socket = socket(wisdom_addr->ai_family, wisdom_addr->ai_socktype, 
                         wisdom_addr->ai_protocol)) == -1) {
-            throw std::runtime_error("socket failed with errno: " + errno);
+            throw std::runtime_error("socket failed with errno: " + std::to_string(errno));
         }
     }
 }
@@ -103,7 +103,7 @@ void Wisdom::do_deactivate()
 void Wisdom::send_udp_command(const char* command)
 {
     if ((sendto(udp_socket, command, CMD_LEN, 0, wisdom_addr->ai_addr, wisdom_addr->ai_addrlen)) != CMD_LEN) {
-        throw std::runtime_error("sendto failed with errno: " + errno);
+        throw std::runtime_error("sendto failed with errno: " + std::to_string(errno));
     }
 }
 
@@ -123,7 +123,7 @@ void Wisdom::wait_for_ack(const char expected_byte)
     if (pfds[0].revents & POLLIN) {
         // We have a message to receive
         if ((recvfrom(udp_socket, &ack_buf, 1 , 0, (struct sockaddr *)&tmp_addr, &tmp_addr_len)) == -1) {
-            throw std::runtime_error("recvfrom failed with errno: " + errno);
+            throw std::runtime_error("recvfrom failed with errno: " + std::to_string(errno));
         }
         BOOST_LOG_TRIVIAL(info) << "ACK received: " << (int)ack_buf;
         if (ack_buf != expected_byte) {
