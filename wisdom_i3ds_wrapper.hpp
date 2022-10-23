@@ -13,11 +13,17 @@
 
 #include <i3ds/sensor.hpp>
 #include <i3ds/server.hpp>
+#include <i3ds/service.hpp>
+#include <i3ds/codec.hpp>
+
 
 class Wisdom : public i3ds::Sensor
 {
 
     public:
+
+        typedef i3ds::Command<16, i3ds::NullCodec> SetTimeService;
+        typedef i3ds::Command<17, i3ds::NullCodec> LoadTablesService;
 
         // Constructor
         Wisdom(i3ds_asn1::NodeID node, unsigned int dummy_delay = 0, 
@@ -56,6 +62,9 @@ class Wisdom : public i3ds::Sensor
 
         void dummy_wait_for_measurement_to_finish();
         void wait_for_measurement_to_finish();
+
+        void set_time(SetTimeService::Data);
+        void load_tables(LoadTablesService::Data);
 
         const unsigned int dummy_delay_;
 

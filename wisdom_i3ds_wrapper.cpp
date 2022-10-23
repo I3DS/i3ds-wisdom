@@ -1,4 +1,5 @@
 #include "wisdom_i3ds_wrapper.hpp"
+#include <i3ds/codec.hpp>
 
 #ifndef BOOST_LOG_DYN_LINK
 #define BOOST_LOG_DYN_LINK
@@ -59,6 +60,17 @@ bool Wisdom::is_sampling_supported(i3ds_asn1::SampleCommand sample)
 void Wisdom::Attach(i3ds::Server& server)
 {
     Sensor::Attach(server);
+    server.Attach<SetTimeService>(node(), [this](SetTimeService::Data d){set_time(d);});
+}
+
+void Wisdom::set_time(SetTimeService::Data)
+{
+    BOOST_LOG_TRIVIAL(info) << "Sending SET_TIME";
+}
+
+void Wisdom::load_tables(LoadTablesService::Data)
+{
+    BOOST_LOG_TRIVIAL(info) << "Loading tables";
 }
 
 void Wisdom::do_activate()
