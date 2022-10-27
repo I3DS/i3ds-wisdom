@@ -60,17 +60,44 @@ bool Wisdom::is_sampling_supported(i3ds_asn1::SampleCommand sample)
 void Wisdom::Attach(i3ds::Server& server)
 {
     Sensor::Attach(server);
-    server.Attach<SetTimeService>(node(), [this](SetTimeService::Data d){set_time(d);});
+    server.Attach<SetTimeService>(node(), [this](SetTimeService::Data d){set_time_handler(d);});
+    server.Attach<LoadTablesService>(node(), [this](LoadTablesService::Data d){load_tables_handler(d);});
 }
 
-void Wisdom::set_time(SetTimeService::Data)
+void Wisdom::set_time_handler(SetTimeService::Data)
 {
     BOOST_LOG_TRIVIAL(info) << "Sending SET_TIME";
+    set_time();
 }
 
-void Wisdom::load_tables(LoadTablesService::Data)
+void Wisdom::load_tables_handler(LoadTablesService::Data)
 {
     BOOST_LOG_TRIVIAL(info) << "Loading tables";
+    load_tables();
+}
+
+void Wisdom::set_time()
+{
+    send_udp_command(SET_TIME);
+    wait_for_ack(SET_TIME[0]);
+}
+
+void Wisdom::load_tables()
+{
+    char cmd[CMD_LEN];
+    for (unsigned int table = 1; table <= 4; table++) {
+        make_sci_config_cmd(cmd, table);
+        send_udp_command(cmd);
+        wait_for_ack(1);
+    }
+}
+
+void Wisdom::make_sci_config_cmd(char* buf, unsigned char table_number)
+{
+    buf[0] = 1;
+    buf[1] = table_number;
+    buf[2] = 0;
+    buf[3] = 0;
 }
 
 void Wisdom::do_activate()
@@ -78,11 +105,9 @@ void Wisdom::do_activate()
     BOOST_LOG_TRIVIAL(info) << "Activating WISDOM";
     if (dummy_delay_ == 0) {
         BOOST_LOG_TRIVIAL(info) << "Sending SET_TIME command";
-        send_udp_command(SET_TIME);
-        wait_for_ack(SET_TIME[0]);
+        set_time();
         BOOST_LOG_TRIVIAL(info) << "Sending SCI_CONFIG command";
-        send_udp_command(SCI_CONFIG);
-        wait_for_ack(SCI_CONFIG[0]);
+        load_tables();
     }
 }
 

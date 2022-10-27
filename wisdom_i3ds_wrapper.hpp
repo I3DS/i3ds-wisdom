@@ -63,8 +63,11 @@ class Wisdom : public i3ds::Sensor
         void dummy_wait_for_measurement_to_finish();
         void wait_for_measurement_to_finish();
 
-        void set_time(SetTimeService::Data);
-        void load_tables(LoadTablesService::Data);
+        void set_time_handler(SetTimeService::Data);
+        void load_tables_handler(LoadTablesService::Data);
+
+        void set_time();
+        void load_tables();
 
         const unsigned int dummy_delay_;
 
@@ -82,6 +85,9 @@ class Wisdom : public i3ds::Sensor
         const char SCI_START[CMD_LEN] = {3, 0, 0, 3};
         const char SCI_REQUEST[CMD_LEN] = {4, 0, 0, 0};
         const char SET_TIME[CMD_LEN] = {7, 0, 0, 0};
+
+        void make_sci_config_cmd(char* buf, unsigned char table_number);
+        void make_sci_start_cmd(char* buf, unsigned char table_number);
 
         std::atomic<bool> running_;
 };
