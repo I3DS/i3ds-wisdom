@@ -59,27 +59,32 @@ class Wisdom : public i3ds::Sensor
     private:
 
         // UDP communication functions
+        void make_sci_config_cmd(char* buf, unsigned char table_number);
+        void make_sci_start_cmd(char* buf, unsigned char table_number);
         void send_udp_command(const char* command);
         void wait_for_ack(const char expected_byte);
 
         void dummy_wait_for_measurement_to_finish();
         void wait_for_measurement_to_finish();
 
-        void set_time_handler(SetTimeService::Data);
-        void load_tables_handler(LoadTablesService::Data);
-        void table_select_handler(TableSelectService::Data);
+        // Command handlers
+        void handle_set_time(SetTimeService::Data);
+        void handle_load_tables(LoadTablesService::Data);
+        void handle_table_select(TableSelectService::Data);
 
         void set_time();
         void load_tables();
 
+        // Number of seconds to wait for dummy measurement. Will be 0 if 
+        // real commands are to be sent
         const unsigned int dummy_delay_;
 
         // Worker thread.
         std::thread worker_;
 
         // Networking structs
-        int udp_socket;
-        struct addrinfo *wisdom_addr;
+        int udp_socket_;
+        struct addrinfo *wisdom_addr_;
 
         // UDP message commands
         static const unsigned int CMD_LEN = 4;
@@ -89,11 +94,9 @@ class Wisdom : public i3ds::Sensor
         const char SCI_REQUEST[CMD_LEN] = {4, 0, 0, 0};
         const char SET_TIME[CMD_LEN] = {7, 0, 0, 0};
 
+        // Flags for which parameter tables to use
         static const unsigned int N_TABLES = 4;
         bool active_tables_[N_TABLES] = {true, true, true, true};
-
-        void make_sci_config_cmd(char* buf, unsigned char table_number);
-        void make_sci_start_cmd(char* buf, unsigned char table_number);
 
         std::atomic<bool> running_;
 };

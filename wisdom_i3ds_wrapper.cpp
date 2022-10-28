@@ -36,12 +36,12 @@ Wisdom::Wisdom(i3ds_asn1::NodeID node, unsigned int dummy_delay, std::string por
         hints.ai_family = AF_INET;
         hints.ai_socktype = SOCK_DGRAM;
 
-        if ((rv = getaddrinfo(ip.c_str(), port.c_str(), &hints, &wisdom_addr)) != 0) {
+        if ((rv = getaddrinfo(ip.c_str(), port.c_str(), &hints, &wisdom_addr_)) != 0) {
             throw std::runtime_error("addrinfo failed with errno: " + std::to_string(errno));
         }
 
-        if ((udp_socket = socket(wisdom_addr->ai_family, wisdom_addr->ai_socktype, 
-                        wisdom_addr->ai_protocol)) == -1) {
+        if ((udp_socket_ = socket(wisdom_addr_->ai_family, wisdom_addr_->ai_socktype, 
+                        wisdom_addr_->ai_protocol)) == -1) {
             throw std::runtime_error("socket failed with errno: " + std::to_string(errno));
         }
     }
@@ -50,8 +50,8 @@ Wisdom::Wisdom(i3ds_asn1::NodeID node, unsigned int dummy_delay, std::string por
 Wisdom::~Wisdom()
 {
     if (dummy_delay_ == 0) {
-        freeaddrinfo(wisdom_addr);
-        close(udp_socket);
+        freeaddrinfo(wisdom_addr_);
+        close(udp_socket_);
     }
 }
 
@@ -64,58 +64,14 @@ bool Wisdom::is_sampling_supported(i3ds_asn1::SampleCommand sample)
 void Wisdom::Attach(i3ds::Server& server)
 {
     Sensor::Attach(server);
-    server.Attach<SetTimeService>(node(), [this](SetTimeService::Data d){set_time_handler(d);});
-    server.Attach<LoadTablesService>(node(), [this](LoadTablesService::Data d){load_tables_handler(d);});
-    server.Attach<TableSelectService>(node(), [this](TableSelectService::Data d){table_select_handler(d);});
+    server.Attach<SetTimeService>(node(), [this](SetTimeService::Data d){handle_set_time(d);});
+    server.Attach<LoadTablesService>(node(), [this](LoadTablesService::Data d){handle_load_tables(d);});
+    server.Attach<TableSelectService>(node(), [this](TableSelectService::Data d){handle_table_select(d);});
 }
 
-void Wisdom::set_time_handler(SetTimeService::Data)
+void Wisdom::Stop()
 {
-    check_standby();
-    BOOST_LOG_TRIVIAL(info) << "Sending SET_TIME";
-    set_time();
-}
-
-void Wisdom::load_tables_handler(LoadTablesService::Data)
-{
-    check_standby();
-    BOOST_LOG_TRIVIAL(info) << "Loading tables";
-    load_tables();
-}
-
-void Wisdom::set_time()
-{
-    if (dummy_delay_ == 0) {
-        send_udp_command(SET_TIME);
-        wait_for_ack(SET_TIME[0]);
-    }
-}
-
-void Wisdom::load_tables()
-{
-    if (dummy_delay_ == 0) {
-        char cmd[CMD_LEN];
-        for (unsigned int table = 1; table <= 4; table++) {
-            make_sci_config_cmd(cmd, table);
-            send_udp_command(cmd);
-            wait_for_ack(cmd[0]);
-        }
-    }
-}
-
-void Wisdom::make_sci_config_cmd(char* buf, unsigned char table_number)
-{
-    buf[0] = 1;
-    buf[1] = table_number;
-    buf[2] = 0;
-    buf[3] = 0;
-}
-void Wisdom::make_sci_start_cmd(char* buf, unsigned char table_number)
-{
-    buf[0] = 3;
-    buf[1] = table_number;
-    buf[2] = 0;
-    buf[3] = 3;
+    running_ = false;
 }
 
 void Wisdom::do_activate()
@@ -154,9 +110,25 @@ void Wisdom::do_deactivate()
     BOOST_LOG_TRIVIAL(info) << "Deactivating WISDOM";
 }
 
+void Wisdom::make_sci_config_cmd(char* buf, unsigned char table_number)
+{
+    buf[0] = 1;
+    buf[1] = table_number;
+    buf[2] = 0;
+    buf[3] = 0;
+}
+
+void Wisdom::make_sci_start_cmd(char* buf, unsigned char table_number)
+{
+    buf[0] = 3;
+    buf[1] = table_number;
+    buf[2] = 0;
+    buf[3] = 3;
+}
+
 void Wisdom::send_udp_command(const char* command)
 {
-    if ((sendto(udp_socket, command, CMD_LEN, 0, wisdom_addr->ai_addr, wisdom_addr->ai_addrlen)) != CMD_LEN) {
+    if ((sendto(udp_socket_, command, CMD_LEN, 0, wisdom_addr_->ai_addr, wisdom_addr_->ai_addrlen)) != CMD_LEN) {
         throw std::runtime_error("sendto failed with errno: " + std::to_string(errno));
     }
 }
@@ -167,7 +139,7 @@ void Wisdom::wait_for_ack(const char expected_byte)
     struct sockaddr_storage tmp_addr;
     socklen_t tmp_addr_len = sizeof(tmp_addr);
     struct pollfd pfds[1];
-    pfds[0].fd = udp_socket;
+    pfds[0].fd = udp_socket_;
     pfds[0].events = POLLIN;
     char ack_buf;
     int n_events = 0;
@@ -176,7 +148,7 @@ void Wisdom::wait_for_ack(const char expected_byte)
     }
     if (pfds[0].revents & POLLIN) {
         // We have a message to receive
-        if ((recvfrom(udp_socket, &ack_buf, 1 , 0, (struct sockaddr *)&tmp_addr, &tmp_addr_len)) == -1) {
+        if ((recvfrom(udp_socket_, &ack_buf, 1 , 0, (struct sockaddr *)&tmp_addr, &tmp_addr_len)) == -1) {
             throw std::runtime_error("recvfrom failed with errno: " + std::to_string(errno));
         }
         BOOST_LOG_TRIVIAL(info) << "ACK received: " << (int)ack_buf;
@@ -213,12 +185,21 @@ void Wisdom::wait_for_measurement_to_finish()
     set_state(i3ds_asn1::SensorState_standby);
 }
 
-void Wisdom::Stop()
+void Wisdom::handle_set_time(SetTimeService::Data)
 {
-    running_ = false;
+    check_standby();
+    BOOST_LOG_TRIVIAL(info) << "Sending SET_TIME";
+    set_time();
 }
 
-void Wisdom::table_select_handler(TableSelectService::Data d)
+void Wisdom::handle_load_tables(LoadTablesService::Data)
+{
+    check_standby();
+    BOOST_LOG_TRIVIAL(info) << "Loading tables";
+    load_tables();
+}
+
+void Wisdom::handle_table_select(TableSelectService::Data d)
 {
     check_standby();
     BOOST_LOG_TRIVIAL(info) << "Got new table setting";
@@ -246,4 +227,24 @@ void Wisdom::table_select_handler(TableSelectService::Data d)
         }
     }
     BOOST_LOG_TRIVIAL(info) << "Setting tables: " + current_setting;
+}
+
+void Wisdom::set_time()
+{
+    if (dummy_delay_ == 0) {
+        send_udp_command(SET_TIME);
+        wait_for_ack(SET_TIME[0]);
+    }
+}
+
+void Wisdom::load_tables()
+{
+    if (dummy_delay_ == 0) {
+        char cmd[CMD_LEN];
+        for (unsigned int table = 1; table <= 4; table++) {
+            make_sci_config_cmd(cmd, table);
+            send_udp_command(cmd);
+            wait_for_ack(cmd[0]);
+        }
+    }
 }
