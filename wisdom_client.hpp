@@ -12,6 +12,7 @@
 #define __WISDOM_CLIENT_HPP
 
 #include <i3ds/sensor_client.hpp>
+#include <vector>
 #include "wisdom_i3ds_wrapper.hpp"
 
 
@@ -29,6 +30,7 @@ public:
 
     void set_time();
     void load_tables();
+    void table_select(const std::vector<bool>& tables);
 };
 
 

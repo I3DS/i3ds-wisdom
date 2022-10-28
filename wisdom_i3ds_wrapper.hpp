@@ -16,6 +16,7 @@
 #include <i3ds/service.hpp>
 #include <i3ds/codec.hpp>
 
+//#include "asn/Wisdom.h"
 
 class Wisdom : public i3ds::Sensor
 {
@@ -24,6 +25,7 @@ class Wisdom : public i3ds::Sensor
 
         typedef i3ds::Command<16, i3ds::NullCodec> SetTimeService;
         typedef i3ds::Command<17, i3ds::NullCodec> LoadTablesService;
+        typedef i3ds::Command<19, i3ds::T_StringCodec> TableSelectService; 
 
         // Constructor
         Wisdom(i3ds_asn1::NodeID node, unsigned int dummy_delay = 0, 
@@ -65,6 +67,7 @@ class Wisdom : public i3ds::Sensor
 
         void set_time_handler(SetTimeService::Data);
         void load_tables_handler(LoadTablesService::Data);
+        void table_select_handler(TableSelectService::Data);
 
         void set_time();
         void load_tables();
@@ -85,6 +88,9 @@ class Wisdom : public i3ds::Sensor
         const char SCI_START[CMD_LEN] = {3, 0, 0, 3};
         const char SCI_REQUEST[CMD_LEN] = {4, 0, 0, 0};
         const char SET_TIME[CMD_LEN] = {7, 0, 0, 0};
+
+        static const unsigned int N_TABLES = 4;
+        bool active_tables_[N_TABLES] = {true, true, true, true};
 
         void make_sci_config_cmd(char* buf, unsigned char table_number);
         void make_sci_start_cmd(char* buf, unsigned char table_number);

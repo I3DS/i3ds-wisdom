@@ -1,5 +1,9 @@
 #include "wisdom_i3ds_wrapper.hpp"
+#include <algorithm>
 #include <i3ds/codec.hpp>
+#include <i3ds_asn1/Common.hpp>
+#include <iterator>
+#include <string>
 
 #ifndef BOOST_LOG_DYN_LINK
 #define BOOST_LOG_DYN_LINK
@@ -62,33 +66,40 @@ void Wisdom::Attach(i3ds::Server& server)
     Sensor::Attach(server);
     server.Attach<SetTimeService>(node(), [this](SetTimeService::Data d){set_time_handler(d);});
     server.Attach<LoadTablesService>(node(), [this](LoadTablesService::Data d){load_tables_handler(d);});
+    server.Attach<TableSelectService>(node(), [this](TableSelectService::Data d){table_select_handler(d);});
 }
 
 void Wisdom::set_time_handler(SetTimeService::Data)
 {
+    check_standby();
     BOOST_LOG_TRIVIAL(info) << "Sending SET_TIME";
     set_time();
 }
 
 void Wisdom::load_tables_handler(LoadTablesService::Data)
 {
+    check_standby();
     BOOST_LOG_TRIVIAL(info) << "Loading tables";
     load_tables();
 }
 
 void Wisdom::set_time()
 {
-    send_udp_command(SET_TIME);
-    wait_for_ack(SET_TIME[0]);
+    if (dummy_delay_ == 0) {
+        send_udp_command(SET_TIME);
+        wait_for_ack(SET_TIME[0]);
+    }
 }
 
 void Wisdom::load_tables()
 {
-    char cmd[CMD_LEN];
-    for (unsigned int table = 1; table <= 4; table++) {
-        make_sci_config_cmd(cmd, table);
-        send_udp_command(cmd);
-        wait_for_ack(1);
+    if (dummy_delay_ == 0) {
+        char cmd[CMD_LEN];
+        for (unsigned int table = 1; table <= 4; table++) {
+            make_sci_config_cmd(cmd, table);
+            send_udp_command(cmd);
+            wait_for_ack(cmd[0]);
+        }
     }
 }
 
@@ -98,6 +109,13 @@ void Wisdom::make_sci_config_cmd(char* buf, unsigned char table_number)
     buf[1] = table_number;
     buf[2] = 0;
     buf[3] = 0;
+}
+void Wisdom::make_sci_start_cmd(char* buf, unsigned char table_number)
+{
+    buf[0] = 3;
+    buf[1] = table_number;
+    buf[2] = 0;
+    buf[3] = 3;
 }
 
 void Wisdom::do_activate()
@@ -118,7 +136,6 @@ void Wisdom::do_start()
     }
     BOOST_LOG_TRIVIAL(info) << "Start WISDOM measurement";
     if (dummy_delay_ == 0) {
-        send_udp_command(SCI_START);
         worker_ = std::thread(&Wisdom::wait_for_measurement_to_finish, this);
     }
     else {
@@ -180,16 +197,53 @@ void Wisdom::dummy_wait_for_measurement_to_finish()
 
 void Wisdom::wait_for_measurement_to_finish()
 {
-    wait_for_ack(SCI_START[0]);
-    BOOST_LOG_TRIVIAL(info) << "Measurement done";
-    BOOST_LOG_TRIVIAL(info) << "Retrieving data";
-    send_udp_command(SCI_REQUEST);
-    wait_for_ack(SCI_REQUEST[0]);
-    BOOST_LOG_TRIVIAL(info) << "Data retrieval done";
+    char cmd[CMD_LEN];
+    for (int i = 0; i < N_TABLES; i++) {
+        if (active_tables_[i]) {
+            BOOST_LOG_TRIVIAL(info) << "Starting measurement with table " << std::to_string(i);
+            make_sci_start_cmd(cmd, 1);
+            send_udp_command(cmd);
+            wait_for_ack(cmd[0]);
+            BOOST_LOG_TRIVIAL(info) << "Measurement done, retrieving data";
+            send_udp_command(SCI_REQUEST);
+            wait_for_ack(SCI_REQUEST[0]);
+            BOOST_LOG_TRIVIAL(info) << "Data retreived";
+        }
+    }
     set_state(i3ds_asn1::SensorState_standby);
 }
 
 void Wisdom::Stop()
 {
     running_ = false;
+}
+
+void Wisdom::table_select_handler(TableSelectService::Data d)
+{
+    check_standby();
+    BOOST_LOG_TRIVIAL(info) << "Got new table setting";
+    if (d.request.nCount != N_TABLES) {
+        throw i3ds::CommandError(i3ds_asn1::ResultCode_error_value, 
+                                 "Requires " + std::to_string(N_TABLES) + " byte message");
+
+    }
+
+    // Check that not all tables are set to false.
+    if (std::none_of(std::begin(d.request.arr), std::end(d.request.arr), [](bool b){return b;})) {
+        throw i3ds::CommandError(i3ds_asn1::ResultCode_error_value,
+                                  "At least one table must be enabled");
+        return;
+    }
+
+    std::string current_setting = "";
+    for (int i = 0; i < N_TABLES; i++) {
+        active_tables_[i] = d.request.arr[i];
+        if (active_tables_[i]) {
+            current_setting += "1 ";
+        }
+        else {
+            current_setting += "0 ";
+        }
+    }
+    BOOST_LOG_TRIVIAL(info) << "Setting tables: " + current_setting;
 }
