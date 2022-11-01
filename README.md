@@ -40,8 +40,18 @@ i3ds_wisdom -n 25 -d 5
 We can then activate and start the sensor from another terminal with the commands
 
 ```bash
-i3ds_configure_sensor -n 25 --activate
-i3ds_configure_sensor -n 25 --start
+i3ds_configure_wisdom -n 25 --activate
+```
+
+We can choose which tables will be used during the measurement. To use tables 1 and 3, run:
+
+```bash
+i3ds_configure_wisdom -n 25 --set-tables 1 0 1 0
+```
+Then we can start the measurement with:
+
+```bash
+i3ds_configure_wisdom -n 25 --start
 ```
 
 Then we can see the **i3ds\_wisdom** instance print its status messages. We can also query the state of the sensor from the other terminal with
@@ -75,11 +85,26 @@ This time, we run it with the `-p` flag and a port number instead of the `-d` fl
 To run the system with a real WISDOM GPR, just run the **i3ds\_wisdom** service:
 
 ```bash
-i3ds_wisdom -n <node> -p <port>
+i3ds_wisdom -n <node> -p <port> -s <serial_device>
 ```
 
-using a chosen node ID and the port of the WISDOM server. If the server is running on another machine, use
+using a chosen node ID and the port of the WISDOM server. The `<serial_device>` is the file name for the serial port to the power control. If this if omitted, no serial commands are sent, and the power must be controlled manually. If the server is running on another machine, use
 
 ```bash
 i3ds_wisdom -n <node> -p <port> -i <ip-address>
 ```
+
+When the real sensor is used, the interface will send power-on commands during activation. The command is the same as in dummy mode:
+
+```bash
+i3ds_configure_wisdom -n 25 --activate
+```
+
+The interface will also send commands to the GPR to set the time and load parameter tables. These commands can also be triggered manually after activation with:
+
+```bash
+i3ds_configure_wisdom -n 25 --set-time
+i3ds_configure_wisdom -n 25 --load-tables
+```
+
+Setting which tables to use is also the same as in dummy mode.
