@@ -16,8 +16,6 @@
 #include <i3ds/service.hpp>
 #include <i3ds/codec.hpp>
 
-//#include "asn/Wisdom.h"
-
 class Wisdom : public i3ds::Sensor
 {
 
@@ -28,7 +26,7 @@ class Wisdom : public i3ds::Sensor
         typedef i3ds::Command<19, i3ds::T_StringCodec> TableSelectService; 
 
         // Constructor
-        Wisdom(i3ds_asn1::NodeID node, unsigned int dummy_delay = 0, 
+        Wisdom(i3ds_asn1::NodeID node, unsigned int dummy_delay = 0, std::string uart_dev = "", 
                std::string port = "", std::string ip = "127.0.0.1");
 
         // Destructor
@@ -75,6 +73,10 @@ class Wisdom : public i3ds::Sensor
         void set_time();
         void load_tables();
 
+        bool send_serial_cmd(const char* cmd, const size_t cmd_len, const char* expected_ack);
+        bool power_on();
+        bool power_off();
+
         // Number of seconds to wait for dummy measurement. Will be 0 if 
         // real commands are to be sent
         const unsigned int dummy_delay_;
@@ -99,6 +101,15 @@ class Wisdom : public i3ds::Sensor
         bool active_tables_[N_TABLES] = {true, true, true, true};
 
         std::atomic<bool> running_;
+
+        // Serial communication
+        int serial_port_;
+        const unsigned int serial_retries_ = 5;
+        const char power_on_cmd_ = '1';
+        const char power_on_ack_[6] = "0x01\n";
+        const char power_off_cmd_ = '1';
+        const char power_off_ack_[6] = "0x00\n";
+
 };
 
 

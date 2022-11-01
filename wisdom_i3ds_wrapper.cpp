@@ -4,6 +4,7 @@
 #include <i3ds_asn1/Common.hpp>
 #include <iterator>
 #include <string>
+#include <unistd.h>
 
 #ifndef BOOST_LOG_DYN_LINK
 #define BOOST_LOG_DYN_LINK
@@ -21,8 +22,10 @@
 #include <netdb.h>
 #include <poll.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <termios.h>
 
-Wisdom::Wisdom(i3ds_asn1::NodeID node, unsigned int dummy_delay, std::string port, std::string ip) :
+Wisdom::Wisdom(i3ds_asn1::NodeID node, unsigned int dummy_delay,  std::string uart_dev, std::string port, std::string ip) :
     Sensor(node),
     dummy_delay_(dummy_delay),
     running_(true)
@@ -45,6 +48,59 @@ Wisdom::Wisdom(i3ds_asn1::NodeID node, unsigned int dummy_delay, std::string por
             throw std::runtime_error("socket failed with errno: " + std::to_string(errno));
         }
     }
+    if (uart_dev != "") {
+        serial_port_ = open(uart_dev.c_str(), O_RDWR);
+        if (serial_port_ < 0) {
+            BOOST_LOG_TRIVIAL(error) << "Error when opening serial port: " << std::to_string(errno)
+                                     << ": " << strerror(errno);
+        }
+        else {
+            struct termios tty;
+            if(tcgetattr(serial_port_, &tty) != 0) {
+                BOOST_LOG_TRIVIAL(error) << "Error from tcgetattr: " <<  std::to_string(errno) 
+                                         << ": " << strerror(errno);
+                close(serial_port_);
+                serial_port_ = -1;
+            }
+            else {
+                tty.c_cflag &= ~PARENB; // Clear parity bit, disabling parity (most common)
+                tty.c_cflag &= ~CSTOPB; // Clear stop field, only one stop bit used in communication (most common)
+                tty.c_cflag &= ~CSIZE; // Clear all bits that set the data size 
+                tty.c_cflag |= CS8; // 8 bits per byte (most common)
+                tty.c_cflag &= ~CRTSCTS; // Disable RTS/CTS hardware flow control (most common)
+                tty.c_cflag |= CREAD | CLOCAL; // Turn on READ & ignore ctrl lines (CLOCAL = 1)
+
+                tty.c_lflag &= ~ICANON;
+                tty.c_lflag &= ~ECHO; // Disable echo
+                tty.c_lflag &= ~ECHOE; // Disable erasure
+                tty.c_lflag &= ~ECHONL; // Disable new-line echo
+                tty.c_lflag &= ~ISIG; // Disable interpretation of INTR, QUIT and SUSP
+                tty.c_iflag &= ~(IXON | IXOFF | IXANY); // Turn off s/w flow ctrl
+                tty.c_iflag &= ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|IGNCR|ICRNL); // Disable any special handling of received bytes
+
+                tty.c_oflag &= ~OPOST; // Prevent special interpretation of output bytes (e.g. newline chars)
+                tty.c_oflag &= ~ONLCR; // Prevent conversion of newline to carriage return/line feed
+
+                tty.c_cc[VTIME] = 10;    // Wait for up to 1s (10 deciseconds), returning as soon as any data is received.
+                tty.c_cc[VMIN] = 0;
+
+                cfsetispeed(&tty, B115200);
+                cfsetospeed(&tty, B115200);
+
+                // Save tty settings, also checking for error
+                if (tcsetattr(serial_port_, TCSANOW, &tty) != 0) {
+                    BOOST_LOG_TRIVIAL(error) << "Error from tcsetattr: " <<  std::to_string(errno) 
+                                             << ": " << strerror(errno);
+                    close(serial_port_);
+                    serial_port_ = -1;
+                }
+            }
+        }
+        
+    }
+    else {
+        serial_port_ = -1;
+    }
 }
 
 Wisdom::~Wisdom()
@@ -52,6 +108,9 @@ Wisdom::~Wisdom()
     if (dummy_delay_ == 0) {
         freeaddrinfo(wisdom_addr_);
         close(udp_socket_);
+    }
+    if (serial_port_ > 0) {
+        close(serial_port_);
     }
 }
 
@@ -77,12 +136,24 @@ void Wisdom::Stop()
 void Wisdom::do_activate()
 {
     BOOST_LOG_TRIVIAL(info) << "Activating WISDOM";
+    if (serial_port_ > 0) {
+        BOOST_LOG_TRIVIAL(info) << "Powering on";
+        if (power_on()) {
+            BOOST_LOG_TRIVIAL(info) << "Successfully powered on";
+        }
+        else {
+            BOOST_LOG_TRIVIAL(error) << "Unable to power on";
+             throw i3ds::CommandError(i3ds_asn1::ResultCode_error_other, 
+                                 "Power on failed");
+        }
+    }
     if (dummy_delay_ == 0) {
         BOOST_LOG_TRIVIAL(info) << "Sending SET_TIME command";
         set_time();
         BOOST_LOG_TRIVIAL(info) << "Sending SCI_CONFIG command";
         load_tables();
     }
+
 }
 
 void Wisdom::do_start()
@@ -108,6 +179,17 @@ void Wisdom::do_stop()
 void Wisdom::do_deactivate()
 {
     BOOST_LOG_TRIVIAL(info) << "Deactivating WISDOM";
+    if (serial_port_ > 0) {
+        BOOST_LOG_TRIVIAL(info) << "Powering off";
+        if (power_off()) {
+            BOOST_LOG_TRIVIAL(info) << "Successfully powered off";
+        }
+        else {
+            BOOST_LOG_TRIVIAL(error) << "Unable to power off";
+             throw i3ds::CommandError(i3ds_asn1::ResultCode_error_other, 
+                                 "Power off failed");
+        }
+    }
 }
 
 void Wisdom::make_sci_config_cmd(char* buf, unsigned char table_number)
@@ -247,4 +329,37 @@ void Wisdom::load_tables()
             wait_for_ack(cmd[0]);
         }
     }
+}
+
+bool Wisdom::send_serial_cmd(const char* cmd, const size_t cmd_len, const char* expected_ack)
+{
+    bool success = false;
+    if (serial_port_ > 0) {
+        char read_buffer[16];
+        for (int i = 0; i < serial_retries_; i++) {
+            write(serial_port_, &cmd, cmd_len);
+            int n = read(serial_port_, &read_buffer, sizeof(read_buffer));
+            if (n == 0) {
+                BOOST_LOG_TRIVIAL(warning) << "Got no ack";
+            }
+            else if (!strcmp(read_buffer, power_on_ack_)) {
+                success = true;
+                break;
+            }
+            else {
+                BOOST_LOG_TRIVIAL(warning) << "Got unexpected ack: " << read_buffer;
+            }
+        }
+    }
+    return success;
+}
+
+bool Wisdom::power_on()
+{
+    return send_serial_cmd(&power_on_cmd_, 1, power_on_ack_);
+}
+
+bool Wisdom::power_off()
+{
+    return send_serial_cmd(&power_off_cmd_, 1, power_off_ack_);
 }
