@@ -243,8 +243,15 @@ void Wisdom::wait_for_ack(const char expected_byte)
 
 void Wisdom::dummy_wait_for_measurement_to_finish()
 {
-    BOOST_LOG_TRIVIAL(info) << "Starting dummy measurement";
-    std::this_thread::sleep_for(std::chrono::seconds(dummy_delay_));
+    for (int i = 0; i < N_TABLES; i++) {
+        if (active_tables_[i]) {
+            BOOST_LOG_TRIVIAL(info) << "Starting dummy measurement with table " << std::to_string(i);
+            std::this_thread::sleep_for(std::chrono::seconds(dummy_delay_));
+            BOOST_LOG_TRIVIAL(info) << "Measurement done, retrieving data";
+            std::this_thread::sleep_for(std::chrono::seconds(dummy_delay_));
+            BOOST_LOG_TRIVIAL(info) << "Data retreived";
+        }
+    }
     BOOST_LOG_TRIVIAL(info) << "Dummy measurement done";
     set_state(i3ds_asn1::SensorState_standby);
 }
