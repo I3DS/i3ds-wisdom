@@ -262,7 +262,7 @@ void Wisdom::wait_for_measurement_to_finish()
     for (int i = 0; i < N_TABLES; i++) {
         if (active_tables_[i]) {
             BOOST_LOG_TRIVIAL(info) << "Starting measurement with table " << std::to_string(i);
-            make_sci_start_cmd(cmd, 1);
+            make_sci_start_cmd(cmd, i);
             send_udp_command(cmd);
             wait_for_ack(cmd[0]);
             BOOST_LOG_TRIVIAL(info) << "Measurement done, retrieving data";
