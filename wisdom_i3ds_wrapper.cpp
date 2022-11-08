@@ -349,7 +349,7 @@ bool Wisdom::send_serial_cmd(const char* cmd, const size_t cmd_len, const char* 
             if (n == 0) {
                 BOOST_LOG_TRIVIAL(warning) << "Got no ack";
             }
-            else if (!strcmp(read_buffer, power_on_ack_)) {
+            else if (!strcmp(read_buffer, expected_ack)) {
                 success = true;
                 break;
             }

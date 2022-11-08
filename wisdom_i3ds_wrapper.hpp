@@ -107,7 +107,7 @@ class Wisdom : public i3ds::Sensor
         const unsigned int serial_retries_ = 5;
         const char power_on_cmd_ = '1';
         const char power_on_ack_[6] = "0x01\n";
-        const char power_off_cmd_ = '1';
+        const char power_off_cmd_ = '0';
         const char power_off_ack_[6] = "0x00\n";
 
 };
